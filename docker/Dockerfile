@@ -8,7 +8,7 @@ RUN CMAKE_ARGS="-DLLAMA_HIPBLAS=ON -DCMAKE_C_COMPILER=/opt/rocm/llvm/bin/clang -
 
 # To upgrade to the higher version, you need to wait for the problem to be resolved
 # https://github.com/abetlen/llama-cpp-python/issues/1481
-ENV COMFYUI_VERSION=69d710e40f43b87dd7124b9ee1e8982f987827e9
+ENV COMFYUI_VERSION=8d3f979b633dab9824c59bf8a06c748a533eec0b
 RUN git clone https://github.com/comfyanonymous/ComfyUI /app && \
     cd /app && \
     git checkout ${COMFYUI_VERSION}
@@ -16,7 +16,7 @@ WORKDIR /app
 
 RUN pip install -r requirements.txt
 
-ENV PATH /opt/miniconda_comfyui_v1.0.0/bin:${PATH}
+ENV PATH /opt/miniconda_comfyui_v1.0.1/bin:${PATH}
 RUN mv custom_nodes custom_nodes-seed
 RUN mv models models-seed
 COPY ./docker/Makefile ./Makefile

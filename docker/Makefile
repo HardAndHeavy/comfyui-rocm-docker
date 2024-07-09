@@ -1,4 +1,4 @@
-CONDA_DIR = /opt/miniconda_comfyui_v1.0.0
+CONDA_DIR = /opt/miniconda_comfyui_v1.0.1
 CONDA_CHECK_SEED_FILE = $(CONDA_DIR)/conda-check-seed-file
 MODELS_CHECK_SEED_FILE = /app/models/models-check-seed-file
 CUSTOM_NODES_CHECK_SEED_FILE = /app/custom_nodes/custom_nodes-check-seed-file

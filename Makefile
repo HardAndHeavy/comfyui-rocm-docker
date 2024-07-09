@@ -23,7 +23,7 @@ bash:
 		--device=/dev/dri \
 		-e HSA_OVERRIDE_GFX_VERSION=$(HSA_OVERRIDE_GFX_VERSION) \
 		-v ./data/home:/root \
-		-v ./data/miniconda_comfyui_v1.0.0:/opt/miniconda_comfyui_v1.0.0 \
+		-v ./data/miniconda_comfyui_v1.0.1:/opt/miniconda_comfyui_v1.0.1 \
 		-v ./data/models:/app/models \
 		-v ./data/custom_nodes:/app/custom_nodes \
 		comfyui-rocm:$(tag) bash
@@ -35,7 +35,7 @@ run:
 		--device=/dev/dri \
 		-e HSA_OVERRIDE_GFX_VERSION=$(HSA_OVERRIDE_GFX_VERSION) \
 		-v ./data/home:/root \
-		-v ./data/miniconda_comfyui_v1.0.0:/opt/miniconda_comfyui_v1.0.0 \
+		-v ./data/miniconda_comfyui_v1.0.1:/opt/miniconda_comfyui_v1.0.1 \
 		-v ./data/models:/app/models \
 		-v ./data/custom_nodes:/app/custom_nodes \
 		hardandheavy/comfyui-rocm:latest
