@@ -1,19 +1,22 @@
-CONDA_DIR = /opt/miniconda_comfyui_v1.0.1
+CONDA_DIR = /opt/miniconda_comfyui_v1.0.5
 CONDA_CHECK_SEED_FILE = $(CONDA_DIR)/conda-check-seed-file
-MODELS_CHECK_SEED_FILE = /app/models/models-check-seed-file
-CUSTOM_NODES_CHECK_SEED_FILE = /app/custom_nodes/custom_nodes-check-seed-file
+COMFYUI_CHECK_SEED_FILE = /app/comfyui-check-seed-file
+MANAGER_CHECK_SEED_FILE = /app/manager-check-seed-file
 
 init:
+	PATH=$(CONDA_DIR)/bin:$(PATH)
 	if [ ! -f $(CONDA_CHECK_SEED_FILE) ]; then \
 		cp -r /opt/miniconda/* $(CONDA_DIR) && \
 		touch $(CONDA_CHECK_SEED_FILE); fi
-	if [ ! -f $(MODELS_CHECK_SEED_FILE) ]; then \
-		cp -r /app/models-seed/* /app/models && \
-		touch $(MODELS_CHECK_SEED_FILE); fi
-	if [ ! -f $(CUSTOM_NODES_CHECK_SEED_FILE) ]; then \
-		cp -r /app/custom_nodes-seed/* /app/custom_nodes && \
-		git clone https://github.com/ltdrdata/ComfyUI-Manager /app/custom_nodes/ComfyUI-Manager && \
-		touch $(CUSTOM_NODES_CHECK_SEED_FILE); fi
+	if [ ! -f $(COMFYUI_CHECK_SEED_FILE) ]; then \
+		git clone https://github.com/comfyanonymous/ComfyUI /comfyui && \
+		cd /comfyui && \
+		pip install -r requirements.txt && \
+		touch $(COMFYUI_CHECK_SEED_FILE); fi
+	if [ ! -f $(MANAGER_CHECK_SEED_FILE) ]; then \
+		git clone https://github.com/ltdrdata/ComfyUI-Manager /comfyui/custom_nodes/ComfyUI-Manager && \
+		touch $(MANAGER_CHECK_SEED_FILE); fi
 
 run: init
+	cd /comfyui && \
 	python main.py --listen 0.0.0.0 --port 80
