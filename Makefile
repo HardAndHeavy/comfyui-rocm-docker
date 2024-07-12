@@ -7,7 +7,6 @@ else
   HSA_OVERRIDE_GFX_VERSION = "GFX version detection error"
 endif
 CONDA_DIR = $(PWD)/data/miniconda_comfyui_v1.0.10
-CONDA_CHECK_SEED_FILE = $(CONDA_DIR)/conda-check-seed-file
 
 build:
 	docker build -t comfyui-rocm:$(tag) -f docker/Dockerfile .
@@ -31,11 +30,12 @@ bash:
 		comfyui-rocm:$(tag) bash
 
 seed-conda:
-	if [ ! -f $(CONDA_CHECK_SEED_FILE) ]; then \
+	if [ ! -f "$(CONDA_DIR)/conda-check-seed-file" ]; then \
 		docker run -it --rm \
 			-v $(CONDA_DIR):/opt/miniconda_seed \
-			hardandheavy/comfyui-rocm:latest sh -c "cp -r /opt/miniconda/* /opt/miniconda_seed" && \
-		touch $(CONDA_CHECK_SEED_FILE); fi
+			hardandheavy/comfyui-rocm:latest sh -c \
+				"cp -r /opt/miniconda/* /opt/miniconda_seed && \
+				touch /opt/miniconda_seed/conda-check-seed-file"; fi
 
 run: seed-conda
 	docker run -it --rm \
