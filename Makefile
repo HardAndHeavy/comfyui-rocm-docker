@@ -36,6 +36,6 @@ run:
 		-e HSA_OVERRIDE_GFX_VERSION=$(HSA_OVERRIDE_GFX_VERSION) \
 		-v ./data/check:/check \
 		-v ./data/home:/root \
-		-v ./data/miniconda_comfyui_v1.0.8:/opt/miniconda_comfyui \
+		-v ./data/miniconda_comfyui_v1.0.9:/opt/miniconda \
 		-v ./data/comfyui:/comfyui \
 		hardandheavy/comfyui-rocm:latest
