@@ -1,10 +1,9 @@
-CONDA_DIR = /opt/miniconda_comfyui_v1.0.6
+CONDA_DIR = /opt/miniconda_comfyui
 CONDA_CHECK_SEED_FILE = $(CONDA_DIR)/conda-check-seed-file
 COMFYUI_CHECK_SEED_FILE = /check/comfyui-check-seed-file
 MANAGER_CHECK_SEED_FILE = /check/manager-check-seed-file
 
 init:
-	PATH=$(CONDA_DIR)/bin:$(PATH)
 	if [ ! -f $(CONDA_CHECK_SEED_FILE) ]; then \
 		cp -r /opt/miniconda/* $(CONDA_DIR) && \
 		touch $(CONDA_CHECK_SEED_FILE); fi
