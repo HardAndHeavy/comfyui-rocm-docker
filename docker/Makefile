@@ -1,12 +1,7 @@
-CONDA_DIR = /opt/miniconda
-CONDA_CHECK_SEED_FILE = $(CONDA_DIR)/conda-check-seed-file
 COMFYUI_CHECK_SEED_FILE = /check/comfyui-check-seed-file
 MANAGER_CHECK_SEED_FILE = /check/manager-check-seed-file
 
 init:
-	if [ ! -f $(CONDA_CHECK_SEED_FILE) ]; then \
-		cp -r /opt/miniconda_seed/* $(CONDA_DIR) && \
-		touch $(CONDA_CHECK_SEED_FILE); fi
 	if [ ! -f $(COMFYUI_CHECK_SEED_FILE) ]; then \
 		git clone https://github.com/comfyanonymous/ComfyUI /comfyui && \
 		cd /comfyui && \
