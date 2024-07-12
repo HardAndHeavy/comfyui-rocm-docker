@@ -1,7 +1,7 @@
-CONDA_DIR = /opt/miniconda_comfyui_v1.0.5
+CONDA_DIR = /opt/miniconda_comfyui_v1.0.6
 CONDA_CHECK_SEED_FILE = $(CONDA_DIR)/conda-check-seed-file
-COMFYUI_CHECK_SEED_FILE = /app/comfyui-check-seed-file
-MANAGER_CHECK_SEED_FILE = /app/manager-check-seed-file
+COMFYUI_CHECK_SEED_FILE = /check/comfyui-check-seed-file
+MANAGER_CHECK_SEED_FILE = /check/manager-check-seed-file
 
 init:
 	PATH=$(CONDA_DIR)/bin:$(PATH)
