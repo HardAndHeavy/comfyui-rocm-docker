@@ -17,7 +17,7 @@ publish:
 	docker image tag comfyui-rocm:$(tag) hardandheavy/comfyui-rocm:latest
 	docker push hardandheavy/comfyui-rocm:latest
 
-bash:
+bash-dev:
 	docker run -it --rm \
 		-p 80:80 \
 		--device=/dev/kfd \
@@ -28,6 +28,18 @@ bash:
 		-v ./data/miniconda_comfyui_v$(tag):/opt/miniconda \
 		-v ./data/comfyui:/comfyui \
 		comfyui-rocm:$(tag) bash
+
+bash:
+	docker run -it --rm \
+		-p 80:80 \
+		--device=/dev/kfd \
+		--device=/dev/dri \
+		-e HSA_OVERRIDE_GFX_VERSION=$(HSA_OVERRIDE_GFX_VERSION) \
+		-v ./data/check:/check \
+		-v ./data/home:/root \
+		-v $(CONDA_DIR):/opt/miniconda \
+		-v ./data/comfyui:/comfyui \
+		hardandheavy/comfyui-rocm:latest bash
 
 seed-conda:
 	if [ ! -f "$(CONDA_DIR)/conda-check-seed-file" ]; then \
