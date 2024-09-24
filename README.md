@@ -22,3 +22,6 @@
 - `make run`
 
 At the first start, a lengthy initialization process will take place. When the process is completed, ComfyUI will be available at http://localhost.
+
+### Development
+If there is a major change in the composition of python libraries, it is necessary to change the version of CONDA_DIR in the Makefile.
