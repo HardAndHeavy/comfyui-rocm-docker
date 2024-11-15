@@ -17,9 +17,11 @@
 - ROCm ([установка](https://github.com/HardAndHeavy/transformers-rocm-docker?tab=readme-ov-file#install-rocm))
 
 ### Запуск
-- `git clone https://github.com/HardAndHeavy/comfyui-rocm-docker`
-- `cd comfyui-rocm-docker`
-- `make run`
+```bash
+git clone https://github.com/HardAndHeavy/comfyui-rocm-docker
+cd comfyui-rocm-docker
+make run
+```
 
 При первом запуске будет происходить длительный процесс инициализации. Когда процесс завершится, ComfyUI станет доступен по адресу http://localhost.
 
