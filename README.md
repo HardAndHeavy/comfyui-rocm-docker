@@ -25,5 +25,7 @@ make run
 
 At the first start, a lengthy initialization process will take place. When the process is completed, ComfyUI will be available at http://localhost.
 
-### Development
-If there is a major change in the composition of python libraries, it is necessary to change the version of CONDA_DIR in the Makefile.
+### Remarks          
+- To add new node resources, you must grant access to the directory `./data`, because the container was started as the root user. To do this, run the command `sudo chmod -R 777 ./data`
+- Models are located in the directory `./data/comfyui/models/`. Models can be found on the site [civitai.com](https://civitai.com/)
+- If there is a major change in the composition of python libraries, you must change the version of `CONDA_DIR` in `. / Makefile`
