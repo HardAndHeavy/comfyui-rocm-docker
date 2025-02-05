@@ -6,7 +6,8 @@ else ifeq ($(ROCM_GPU), gfx1100)
 else
   HSA_OVERRIDE_GFX_VERSION = "GFX version detection error"
 endif
-CONDA_DIR = $(PWD)/data/miniconda_comfyui_v2.4.0
+CUR_VERSION = 2.5.0
+CONDA_DIR = $(PWD)/data/miniconda_sd_v$(CUR_VERSION)
 
 build:
 	docker build -t comfyui-rocm:$(tag) -f docker/Dockerfile .
@@ -17,39 +18,15 @@ publish:
 	docker image tag comfyui-rocm:$(tag) hardandheavy/comfyui-rocm:latest
 	docker push hardandheavy/comfyui-rocm:latest
 
-bash-dev:
-	docker run -it --rm \
-		-p 80:80 \
-		--device=/dev/kfd \
-		--device=/dev/dri \
-		-e HSA_OVERRIDE_GFX_VERSION=$(HSA_OVERRIDE_GFX_VERSION) \
-		-v ./data/check:/check \
-		-v ./data/home:/root \
-		-v ./data/miniconda_comfyui_v$(tag):/opt/miniconda \
-		-v ./data/comfyui:/comfyui \
-		comfyui-rocm:$(tag) bash
-
-bash:
-	docker run -it --rm \
-		-p 80:80 \
-		--device=/dev/kfd \
-		--device=/dev/dri \
-		-e HSA_OVERRIDE_GFX_VERSION=$(HSA_OVERRIDE_GFX_VERSION) \
-		-v ./data/check:/check \
-		-v ./data/home:/root \
-		-v $(CONDA_DIR):/opt/miniconda \
-		-v ./data/comfyui:/comfyui \
-		hardandheavy/comfyui-rocm:latest bash
-
-seed-conda:
+seed:
 	if [ ! -f "$(CONDA_DIR)/conda-check-seed-file" ]; then \
 		docker run -it --rm \
 			-v $(CONDA_DIR):/opt/miniconda_seed \
-			hardandheavy/comfyui-rocm:latest sh -c \
+			hardandheavy/comfyui-rocm:$(CUR_VERSION) sh -c \
 				"cp -r /opt/miniconda/* /opt/miniconda_seed && \
 				touch /opt/miniconda_seed/conda-check-seed-file"; fi
 
-run: seed-conda
+run: seed
 	docker run -it --rm \
 		-p 80:80 \
 		--device=/dev/kfd \
@@ -59,4 +36,4 @@ run: seed-conda
 		-v ./data/home:/root \
 		-v $(CONDA_DIR):/opt/miniconda \
 		-v ./data/comfyui:/comfyui \
-		hardandheavy/comfyui-rocm:latest
+		hardandheavy/comfyui-rocm:$(CUR_VERSION)
