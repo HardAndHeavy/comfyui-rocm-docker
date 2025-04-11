@@ -7,7 +7,7 @@ else
   HSA_OVERRIDE_GFX_VERSION = "GFX version detection error"
 endif
 CUR_VERSION = 2.6.0
-CONDA_DIR = $(PWD)/data/miniconda_sd_v$(CUR_VERSION)
+CONDA_DIR = $(PWD)/data/miniconda_v$(CUR_VERSION)
 
 build:
 	docker build -t comfyui-rocm:$(tag) -f docker/Dockerfile .
