@@ -4,7 +4,7 @@ ifeq ($(ROCM_GPU), gfx1030)
 else ifeq ($(ROCM_GPU), gfx1100)
   HSA_OVERRIDE_GFX_VERSION = 11.0.0
 else
-  HSA_OVERRIDE_GFX_VERSION = "GFX version detection error"
+	HSA_OVERRIDE_GFX_VERSION = 11.0.0
 endif
 CUR_VERSION = 2.7.0
 CONDA_DIR = $(PWD)/data/miniconda_v$(CUR_VERSION)
