@@ -4,9 +4,9 @@ ifeq ($(ROCM_GPU), gfx1030)
 else ifeq ($(ROCM_GPU), gfx1100)
   HSA_OVERRIDE_GFX_VERSION = 11.0.0
 else
-  HSA_OVERRIDE_GFX_VERSION = 11.0.0
+  HSA_OVERRIDE_GFX_VERSION = 9.0.0
 endif
-CUR_VERSION = 2.7.0
+CUR_VERSION = 2.9.0
 CONDA_DIR = $(PWD)/data/miniconda_v$(CUR_VERSION)
 
 build:
@@ -32,6 +32,7 @@ run: seed
 		--device=/dev/kfd \
 		--device=/dev/dri \
 		-e HSA_OVERRIDE_GFX_VERSION=$(HSA_OVERRIDE_GFX_VERSION) \
+		-e HSA_ENABLE_SDMA=0 \
 		-v ./data/check:/check \
 		-v ./data/home:/root \
 		-v $(CONDA_DIR):/opt/miniconda \
