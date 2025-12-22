@@ -1,4 +1,4 @@
-FROM hardandheavy/transformers-rocm:2.9.0
+FROM hardandheavy/transformers-rocm:2.10.0
 
 EXPOSE 80
 
