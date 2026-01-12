@@ -3,6 +3,11 @@ GPU_INFO := $(strip $(shell lspci -nnk | grep -i -E "VGA|3D|Display"))
 ROCM_GPU := gfx900
 HSA_OVERRIDE_GFX_VERSION := 9.0.0
 
+ifneq (,$(or $(findstring 8060S,$(GPU_INFO)),$(findstring 8050S,$(GPU_INFO))))
+  ROCM_GPU := gfx1151
+  HSA_OVERRIDE_GFX_VERSION := 11.5.1
+endif
+
 ifneq (,$(or $(findstring RX 9070,$(GPU_INFO)),$(findstring R9700,$(GPU_INFO))))
   ROCM_GPU := gfx1201
   HSA_OVERRIDE_GFX_VERSION := 12.0.1
