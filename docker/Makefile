@@ -13,4 +13,8 @@ init:
 
 run: init
 	cd /comfyui && \
-	python main.py --listen 0.0.0.0 --port 80
+	if [ -z "$$COMFYUI_LAUNCH_ARGS" ]; then \
+		python main.py --listen 0.0.0.0 --port 80; \
+	else \
+		python main.py $$COMFYUI_LAUNCH_ARGS; \
+	fi

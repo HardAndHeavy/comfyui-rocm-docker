@@ -1,6 +1,6 @@
 include hsa_override.mk
 
-CUR_VERSION = 2.11.0
+CUR_VERSION = 2.12.0
 CONDA_DIR = $(PWD)/data/miniconda_v$(CUR_VERSION)
 
 build:
@@ -27,6 +27,7 @@ run: seed
 		--device=/dev/dri \
 		-e HSA_OVERRIDE_GFX_VERSION=$(HSA_OVERRIDE_GFX_VERSION) \
 		-e HSA_ENABLE_SDMA=0 \
+		-e COMFYUI_LAUNCH_ARGS="--listen 0.0.0.0 --port 80" \
 		-v ./data/check:/check \
 		-v ./data/home:/root \
 		-v $(CONDA_DIR):/opt/miniconda \
