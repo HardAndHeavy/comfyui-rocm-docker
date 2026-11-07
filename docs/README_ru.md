@@ -2,30 +2,255 @@
 
 <h4 align="center">
     <p>
-        <a href="https://github.com/HardAndHeavy/comfyui-rocm-docker">English</a> |
+        <a href="../README.md">English</a> |
         <b>Русский</b>
     </p>
 </h4>
 
-[ComfyUI](https://github.com/comfyanonymous/ComfyUI) в Docker [контейнере с поддержкой GPU Radeon](https://hub.docker.com/repository/docker/hardandheavy/comfyui-rocm/general). Проверено на AMD Radeon RX 7900 XTX.
+[ComfyUI](https://github.com/comfyanonymous/ComfyUI) в воспроизводимом
+Docker-образе для GPU AMD Radeon,
+[`hardandheavy/comfyui-rocm`](https://hub.docker.com/r/hardandheavy/comfyui-rocm).
 
-### Необходимое окружение
-- Ubuntu
-- make
-- Docker
-- git
-- ROCm ([установка](https://github.com/HardAndHeavy/transformers-rocm-docker?tab=readme-ov-file#install-rocm))
+Кастомные узлы и их Python-зависимости, установленные через ComfyUI Manager,
+переживают перезапуск контейнера. На хосте больше нет дерева conda, нет
+seed-файла и не нужно делать `chmod -R` на каталог с данными — это и были
+проблемы прошлых версий образа, включая
+[issue #7](https://github.com/HardAndHeavy/comfyui-rocm-docker/issues/7).
 
-### Запуск
+## Быстрый старт
+
 ```bash
 git clone https://github.com/HardAndHeavy/comfyui-rocm-docker
 cd comfyui-rocm-docker
 make run
 ```
 
-При первом запуске будет происходить длительный процесс инициализации. Когда процесс завершится, ComfyUI станет доступен по адресу http://localhost.
+После первого запуска ComfyUI доступен по адресу <http://localhost:8188>.
+Первый запуск создаёт `./data` и overlay-окружение в нём; модель скачивается
+только командой `make test`, но не при `make run`.
 
-### Замечания
-- Для добавления новых ресурсов узлов необходимо предоставить доступ к каталогу `./data`, так как контейнер запускался от имени пользователя root. Для этого нужно выполнить команду `sudo chmod a+rw -R ./data`
-- Модели располагаются в каталоге `./data/comfyui/models/checkpoints`. Модели можно найти на сайте [civitai.com](https://civitai.com/)
-- При серьёзном изменении состава библиотек python необходимо изменить версию `CONDA_DIR` в `./Makefile`
+Готовый образ без сборки:
+
+```bash
+docker run -d --name comfyui \
+  --ipc=host \
+  --device=/dev/kfd --device=/dev/dri \
+  -v "$PWD/data:/data" \
+  -p 8188:8188 \
+  hardandheavy/comfyui-rocm:latest
+```
+
+## Как устроено состояние
+
+Всё, что пишется во время работы, лежит в одном томе. Внутри образа ничего не
+меняется, поэтому контейнер может работать от непривилегированного
+пользователя, а образ можно пересобрать, не затронув данные.
+
+| Путь | Содержимое |
+| --- | --- |
+| `/data/models` | checkpoints, loras, vae, controlnet, upscale_models, diffusion_models, text_encoders, embeddings, clip_vision |
+| `/data/custom_nodes` | кастомные узлы из Manager'а или добавленные вручную |
+| `/data/input`, `/data/output`, `/data/temp`, `/data/user` | рабочие каталоги ComfyUI и его база данных |
+| `/data/.venv` | overlay-окружение: все Python-пакеты, установленные Manager'ом |
+| `/data/huggingface` | `HF_HOME`, то есть кэш скачанных моделей на томе |
+
+`/data/.venv` — главная часть схемы. Это virtualenv, в site-packages которого
+лежит один файл `base.pth` со ссылкой на
+`/opt/venv/lib/python3.14/site-packages` из образа. ComfyUI запускается
+интерпретатором overlay-окружения, поэтому:
+
+- `pip install` из Manager'а пишет на том и переживает перезапуск;
+- ROCm-сборка PyTorch из образа остаётся доступной, но только для чтения;
+- `pip uninstall` работает как обычно, и pip сам отказывается удалять пакет,
+  который лежит в слое образа;
+- удаление overlay-окружения (`make reset-overlay`) возвращает контейнер к
+  состоянию образа, сохраняя модели и результаты.
+
+Так заменён монтаж `/opt/miniconda` из прошлой версии образа. Тот монтаж
+закреплял целую установку Python на хосте, а seed-файл, которым запоминалось,
+заполнена ли она, и стал причиной issue #7.
+
+## Стек GPU защищён
+
+В `docker/constraints.txt` перечислен стек GPU из базового образа, и этот файл
+подставлен как `PIP_CONSTRAINT` и `UV_CONSTRAINT` для каждого запуска pip и uv
+в контейнере. Кастомный узел, который требует `torch` или `numpy`, получает
+ошибку резолвера вместо тихой замены ROCm-сборки на CUDA-колесо с PyPI — так
+обычно и ломается контейнер с ComfyUI после установки расширения.
+
+Собственные зависимости узла, которых нет в этом списке, ставятся в overlay и
+одноразовы. Если что-то из них сломало ComfyUI, `make reset-overlay` исправляет
+это за секунды.
+
+## Команды
+
+```bash
+make run                # запуск на порту 8188 (PORT=... чтобы изменить)
+make logs               # смотреть лог контейнера
+make stop               # остановить и удалить контейнер
+make build              # собрать образ из этого репозитория
+make check              # офлайн-проверки (версии, lock, синтаксис)
+make smoke-test         # проверка образа; GPU и модель не нужны
+make test               # рендер изображения на закреплённой модели
+make reset-overlay      # удалить всё, что установил Manager
+make publish            # отправить тег и :latest (только для релиза)
+```
+
+`make test` скачивает `stabilityai/sd-turbo` (около 5 ГБ) в
+`./data/models/checkpoints`, сверяет SHA-256 с закреплённым в `versions.json` и
+рендерит изображение 512×512 за четыре шага. Тест падает, если картинка
+получилась однородной: именно так ведёт себя сломанное ядро ROCm — без ошибки.
+
+## Настройка
+
+Все настройки задаются переменными окружения (`-e` или compose).
+
+| Переменная | По умолчанию | Назначение |
+| --- | --- | --- |
+| `COMFYUI_LAUNCH_ARGS` | пусто | дополнительные флаги ComfyUI, например `--lowvram --force-fp16` |
+| `COMFYUI_LISTEN` | `0.0.0.0` | адрес прослушивания |
+| `COMFYUI_PORT` | `8188` | порт внутри контейнера |
+| `COMFYUI_MANAGER` | `1` | `0` — запуск без ComfyUI Manager |
+| `PUID` / `PGID` | `10001` / `10001` | запуск от указанных id |
+| `COMFYUI_ALLOW_ROOT` | `0` | `1` — оставить запуск от root |
+| `HF_HOME` | `/data/huggingface` | расположение кэша Hugging Face |
+
+Не передавайте через `COMFYUI_LAUNCH_ARGS` флаги `--base-directory`,
+`--listen` и `--port`: их выставляет entrypoint, а повтор флага заставляет
+ComfyUI использовать последнее значение.
+
+Значение `--listen` по умолчанию — `0.0.0.0`, потому что контейнер
+подразумевает доступ с хоста через проброшенный порт. ComfyUI и ComfyUI Manager
+считают не-loopback адрес более открытым: Manager снижает уровень безопасности
+и отключает кнопки удалённой установки. Если доступ нужен только с локальной
+машины, оставьте его на loopback:
+
+```bash
+docker run -d --name comfyui --ipc=host \
+  --device=/dev/kfd --device=/dev/dri \
+  -v "$PWD/data:/data" -p 127.0.0.1:8188:8188 \
+  -e COMFYUI_LISTEN=127.0.0.1 \
+  hardandheavy/comfyui-rocm:latest
+```
+
+## Добавление моделей
+
+Кладите файлы в соответствующий каталог внутри `./data/models` — это можно
+делать на работающем контейнере, список файлов в UI обновляется кнопкой
+перезагрузки.
+
+| Тип модели | Каталог |
+| --- | --- |
+| Чекпойнт | `models/checkpoints` |
+| LoRA | `models/loras` |
+| VAE | `models/vae` |
+| ControlNet | `models/controlnet` |
+| Апскейлер | `models/upscale_models` |
+| Diffusion-модель | `models/diffusion_models` |
+| Текстовый энкодер | `models/text_encoders` |
+| CLIP vision | `models/clip_vision` |
+| Эмбеддинг | `models/embeddings` |
+
+Модели есть на [civitai.com](https://civitai.com/) и
+[huggingface.co](https://huggingface.co/).
+
+## Состав версии 3.0.0
+
+Изменения по релизам — в [CHANGELOG](../CHANGELOG.md). Версия образа не связана
+с версиями ROCm, ComfyUI и Manager.
+
+<!-- versions:begin -->
+<!-- versions:end -->
+
+`versions.json` — единственный источник этих версий. Аргументы сборки и OCI-метки
+Dockerfile, `requirements.in` и таблица выше генерируются из него скриптом
+`tools/versions.py`, поэтому разойтись они не могут. Измените `versions.json`,
+выполните `make versions`, и `make base-constraints`, если менялся базовый
+образ. `make check` падает, если что-то устарело.
+
+## Требования
+
+- Linux x86_64 с GPU AMD, поддерживаемой ROCm 10.1.
+- Совместимый драйвер AMDGPU, дающий `/dev/kfd` и `/dev/dri`.
+- Docker Engine 24 или новее с BuildKit.
+- `make` и `git` для команд репозитория.
+- [`uv`](https://docs.astral.sh/uv/) 0.13.7 — только для пересборки lock-файла;
+  версия закреплена в `Makefile` и проверяется в `make lock`.
+
+Пользовательский стек ROCm находится внутри образа, поэтому устанавливать его
+на хосте не нужно — нужен только драйвер ядра. Установка драйвера описана в
+[руководстве AMD](https://rocm.docs.amd.com/projects/install-on-linux/en/latest/).
+
+## Как устроен образ
+
+Образ собирается слоями, и каждый слой — отдельный репозиторий:
+
+```
+rocm/dev-ubuntu-26.04      ROCm, Ubuntu
+  └─ transformers-rocm     закреплённый PyTorch, Transformers, venv в /opt/venv
+       └─ llama-rocm       llama-cpp-python с HIP-бэкендом
+            └─ comfyui-rocm   этот образ: ComfyUI, его зависимости, overlay
+```
+
+Сборка llama.cpp вынесена в отдельный образ, чтобы ComfyUI получал проверенный
+бинарник, а не собирал его у каждого пользователя, и чтобы узлы, запускающие
+LLM внутри ComfyUI, не требовали ничего дополнительно.
+
+Внутри этого образа:
+
+- **Всё закреплено.** APT заморожен на снимке `snapshot.ubuntu.com`, Python-пакеты
+  приходят из lock-файлов с хешами, ComfyUI забирается по коммиту, а не по тегу,
+  поэтому переехавший тег не меняет сборку.
+- **Базовый образ закреплён по digest.** `make pin-base` спрашивает registry,
+  куда сейчас указывает `llama-rocm:3.0.1`, и записывает ответ, а при
+  расхождении версионного тега и `latest` отказывается писать пин.
+- **Lock разрешается относительно базы.** `make lock` использует
+  `docker/base-constraints.txt` и исключает все пакеты базового образа, поэтому
+  ComfyUI не может притянуть второй numpy или старый tokenizers. `make check`
+  падает, если такой пакет появился.
+- **Сборка проверяет себя.** Версия ComfyUI сверяется с закреплённой в
+  `versions.json`, все модули, которые импортируют ComfyUI и Manager,
+  импортируются во время сборки, а `docker/constraints.txt` сверяется с
+  фактически установленным.
+- **Работа без привилегий.** Entrypoint читает group id устройств `/dev/kfd` и
+  `/dev/dri`, выдаёт их и сбрасывает права; ни `--privileged`, ни `--group-add`
+  указывать не нужно.
+
+### Почему нет `/check`
+
+Прошлый образ использовал файл-маркер в `/check`, чтобы понять, склонирован ли
+уже ComfyUI. Если каталога `/check` не было, `touch` падал, цель в `Makefile`
+завершалась до записи маркера, и контейнер заново клонировал ComfyUI при каждом
+перезапуске, падая с `destination path '/comfyui' already exists` (issue #7).
+Монтаж `/check` как `tmpfs` делал хуже: маркер исчезал при каждом перезапуске.
+
+В этом образе маркера нет: раскладка каталогов создаётся, а overlay проверяется
+при каждом старте — обе операции идемпотентны и дешёвы. Код ComfyUI лежит в
+образе в `/opt/comfyui` и никогда не пишется, поэтому инициализировать нечего.
+
+## Если что-то не работает
+
+**`no ROCm GPU visible`** — не проброшены `/dev/kfd` и `/dev/dri` или на хосте
+нет драйвера. Проверьте `ls -l /dev/kfd /dev/dri` и `rocminfo` на хосте.
+
+**`permission denied` при записи в `./data`** — контейнер работает от uid 10001.
+Либо отдайте каталог ему (`sudo chown -R 10001:10001 ./data`), либо запускайте
+со своими id: `make run PUID=$(id -u) PGID=$(id -g)`.
+
+**ComfyUI запускается, но Manager ничего не устанавливает** — Manager применяет
+уровень безопасности в зависимости от `--listen`. На не-loopback адресе он
+требует `security_level` не выше `normal` в своей конфигурации в `/data/user` и
+сам сообщает об этом со ссылкой на свою документацию. Это осознанное ограничение
+Manager'а, а не проблема образа; entrypoint не ослабляет его за вас.
+
+**Кастомный узел сломал ComfyUI** — `make reset-overlay` удаляет все пакеты,
+установленные Manager'ом, и возвращает состояние образа. Модели, результаты и
+каталоги узлов остаются на месте.
+
+**`resolver error` про torch** — так и задумано. `docker/constraints.txt` не даёт
+узлу заменить ROCm-сборку.
+
+## Лицензия
+
+[Apache-2.0](../LICENSE). Сам ComfyUI распространяется под GPL-3.0; в этом
+репозитории нет его кода, только рецепт, который забирает его при сборке.

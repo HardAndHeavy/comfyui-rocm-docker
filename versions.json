@@ -1,0 +1,53 @@
+{
+  "image": {
+    "version": "3.0.0",
+    "base_image": "hardandheavy/llama-rocm",
+    "base_version": "3.0.1",
+    "base_digest": "sha256:c1936e82e527b7f9b82d469f42b66806df49fd45e00d09384dac9e8deb590053",
+    "python_version": "3.14",
+    "ubuntu_series": "resolute",
+    "ubuntu_snapshot": "20261106T000000Z"
+  },
+  "apt": {
+    "libegl1": "1.7.0-3",
+    "libgl1": "1.7.0-3",
+    "libglib2.0-0t64": "2.88.0-1ubuntu0.1",
+    "tini": "0.19.0-6"
+  },
+  "sources": {
+    "comfyui": {
+      "version": "0.44.2",
+      "revision": "e6515b16ed360b01bd6548bffaca193f88f181fb"
+    }
+  },
+  "requirements": {
+    "comfyui-frontend-package": "==1.57.6",
+    "comfyui-workflow-templates": "==0.11.103",
+    "comfyui-embedded-docs": "==0.5.16",
+    "comfyui_manager": "==4.2.2",
+    "torchsde": "",
+    "einops": "",
+    "aiohttp": ">=3.11.8",
+    "yarl": ">=1.18.0",
+    "alembic": "",
+    "SQLAlchemy": ">=2.0.0",
+    "av": ">=17.0.0",
+    "comfy-aimdo": "==0.6.0",
+    "comfy-kitchen": "==0.2.40",
+    "requests": "",
+    "simpleeval": ">=1.0.0",
+    "blake3": "",
+    "kornia": ">=0.7.1",
+    "spandrel": "",
+    "pydantic": "~=2.0",
+    "pydantic-settings": "~=2.0",
+    "PyOpenGL": ">=3.1.8",
+    "comfy-angle": ""
+  },
+  "test": {
+    "model_repository": "stabilityai/sd-turbo",
+    "model_revision": "b261bac6fd2cf515557d5d0707481eafa0485ec2",
+    "model_file": "sd_turbo.safetensors",
+    "model_sha256": "3f067a1b943cf162f2b8f8588f6cf5824bd5b4c7d1d88d87164b9ca123616549"
+  }
+}

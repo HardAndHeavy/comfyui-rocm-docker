@@ -1,0 +1,24 @@
+#!/bin/sh
+# pip shim for the ComfyUI overlay environment.
+#
+# ComfyUI Manager calls `sys.executable -m pip`, which already resolves against
+# the overlay interpreter. This wrapper exists for everything else: a custom
+# node's install.sh, a README that says `pip install ...,` or a user in
+# `docker exec`. `/data/.venv/bin/pip` is a symlink to this file and comes first
+# on PATH, so a bare `pip` can only ever write into the volume — never into the
+# image's /opt/venv, where an install would either fail as a permission error
+# for the unprivileged user or silently shadow a pinned base package for root.
+#
+# Arguments are passed through untouched. Protection against replacing the GPU
+# stack comes from PIP_CONSTRAINT (see docker/constraints.txt), not from here.
+set -eu
+
+overlay="${COMFYUI_OVERLAY:-${COMFYUI_BASE_DIRECTORY:-/data}/.venv}"
+
+if [ ! -x "${overlay}/bin/python" ]; then
+    echo "pip: the overlay environment ${overlay} does not exist yet." >&2
+    echo "pip: it is created by the container entrypoint; run pip inside the container." >&2
+    exit 1
+fi
+
+exec "${overlay}/bin/python" -m pip "$@"

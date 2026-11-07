@@ -1,35 +1,196 @@
-include hsa_override.mk
+DOCKER ?= docker
+# Comma-separated tags to apply to the locally built image. `make build tags=a,b`
+# publishes several aliases without rebuilding.
+tags ?= 3.0.0
+IMAGE ?= comfyui-rocm
+PUBLISH_IMAGE ?= hardandheavy/comfyui-rocm
+tag ?= 3.0.0
 
-CUR_VERSION = 2.12.0
-CONDA_DIR = $(PWD)/data/miniconda_v$(CUR_VERSION)
+LOCAL_IMAGE = $(IMAGE):$(tag)
+BUILD_DATE ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
+GIT_REVISION ?= $(shell git rev-parse HEAD)
+# One image is built and then aliased, so a second name never costs a rebuild.
+_ = $(foreach t,$(tags),$(eval TAG_ARGS += -t $(IMAGE):$(t)))
+
+# Lock generation must be reproducible too, so the generator is pinned and
+# verified instead of silently using whatever uv is on PATH.
+UV ?= uv
+UV_VERSION ?= 0.13.7
+UV_LOCK_FLAGS = --python-version 3.14 \
+	--python-platform x86_64-unknown-linux-gnu \
+	--prerelease disallow \
+	--generate-hashes \
+	--no-annotate \
+	--emit-index-url \
+	--custom-compile-command 'make lock'
+# The ROCm constraints name wheels that only exist on AMD's index (`torch` is
+# 2.13.0+rocm10.1.0), while AMD's index also mirrors some PyPI packages at
+# older versions — markupsafe there is older than the one the base ships. With
+# `first-index` the mirror wins and resolution dies on a package that is not
+# even emitted; `unsafe-best-match` lets both indexes be searched. It is safe
+# here because every base package is constrained to an exact version and every
+# emitted package is hash-pinned, so a substituted artifact cannot install.
+UV_LOCK_INDEXES = --index https://stable.repo.amd.com/rocm/whl-next/ \
+	--default-index https://pypi.org/simple \
+	--index-strategy unsafe-best-match
+# The lock describes what to add on top of the base image, so the base's own
+# packages are constraints and are not emitted: pinning them again would either
+# duplicate a library or invite pip to reinstall one the image already has.
+UV_LOCK_BASE = --constraints docker/base-constraints.txt
+BASE_PACKAGES = $(shell grep -v '^#' docker/base-constraints.txt | cut -d= -f1)
+UV_LOCK_EXCLUDE = $(foreach p,$(BASE_PACKAGES),--no-emit-package $(p))
+
+# A multi-gigabyte layer over a home connection gets reset mid-upload often
+# enough that a single push attempt is not a reliable release step. Each rerun
+# reuses the layers the registry already accepted, so plain retries converge.
+PUSH_RETRIES ?= 8
+PUSH_RETRY_DELAY ?= 20
+
+# $(call push_with_retries,<image reference>)
+define push_with_retries
+	@attempt=1; \
+	while [ $$attempt -le $(PUSH_RETRIES) ]; do \
+		echo "Push attempt $$attempt/$(PUSH_RETRIES): $(1)"; \
+		if $(DOCKER) push $(1); then \
+			break; \
+		fi; \
+		if [ $$attempt -eq $(PUSH_RETRIES) ]; then \
+			echo "Giving up after $(PUSH_RETRIES) attempts; already-uploaded layers are kept, rerun \`make publish\` to continue."; \
+			exit 1; \
+		fi; \
+		echo "Interrupted; retrying in $(PUSH_RETRY_DELAY)s (completed layers are reused)."; \
+		sleep $(PUSH_RETRY_DELAY); \
+		attempt=$$((attempt + 1)); \
+	done
+endef
+
+PORT ?= 8188
+MODEL_REPOSITORY ?= stabilityai/sd-turbo
+MODEL_REVISION ?= b261bac6fd2cf515557d5d0707481eafa0485ec2
+MODEL_FILE ?= sd_turbo.safetensors
+MODEL_SHA256 ?= 3f067a1b943cf162f2b8f8588f6cf5824bd5b4c7d1d88d87164b9ca123616549
+MODEL_URL = https://huggingface.co/$(MODEL_REPOSITORY)/resolve/$(MODEL_REVISION)/$(MODEL_FILE)
+
+DATA ?= $(CURDIR)/data
+
+# --group-add is not needed: the entrypoint reads the gid of /dev/kfd and
+# /dev/dri itself and hands it to setpriv. --ipc=host avoids the small /dev/shm
+# of the default bridge network, which ComfyUI's dataloaders need.
+DOCKER_RUN_FLAGS = --rm \
+	--ipc=host \
+	--device=/dev/kfd \
+	--device=/dev/dri \
+	-v $(DATA):/data
 
 build:
-	docker build -t comfyui-rocm:$(tag) -f docker/Dockerfile .
+	$(DOCKER) build \
+		--build-arg IMAGE_VERSION=$(tag) \
+		--build-arg IMAGE_REVISION=$(GIT_REVISION) \
+		--build-arg IMAGE_CREATED=$(BUILD_DATE) \
+		$(TAG_ARGS) \
+		-f Dockerfile .
+
+# Stays offline: nothing here reaches the network, so it is safe to run in a
+# pre-commit hook. The constraint files are checked against the pinned digest,
+# not against whatever the tag points at now — that is `make pin-base-check`.
+check:
+	$(DOCKER) build --check -f Dockerfile .
+	python3 -B tools/versions.py check
+	python3 -B tools/versions.py check-lock
+	python3 -B -m py_compile test/smoke.py test/generate.py tools/versions.py tools/base_constraints.py tools/pin_base.py
+	sh -n docker/pip
+	bash -n docker/entrypoint.sh
+
+# Propagate versions.json into the Dockerfile blocks, requirements.in and the
+# README table.
+versions:
+	python3 -B tools/versions.py sync
+
+# Regenerate docker/base-constraints.txt and docker/constraints.txt from the
+# base image. Run after the base image version or digest changes.
+base-constraints:
+	python3 -B tools/base_constraints.py
+
+# Resolve the digest of the published base image and write it into versions.json.
+# Run after publishing a new llama-rocm release, then `make versions`.
+pin-base:
+	python3 -B tools/pin_base.py
+
+# `make check` stays offline; this target asks the registry whether the recorded
+# pin still matches the tag. Run it before a release.
+pin-base-check:
+	python3 -B tools/pin_base.py --check
+
+# Run only for an intentional dependency update; normal builds use the lock.
+lock:
+	@test "$$($(UV) --version | cut -d' ' -f2)" = "$(UV_VERSION)" \
+		|| { echo "uv $(UV_VERSION) is required, found $$($(UV) --version)"; exit 1; }
+	$(UV) pip compile requirements.in \
+		--output-file requirements.lock \
+		$(UV_LOCK_FLAGS) \
+		$(UV_LOCK_INDEXES) \
+		$(UV_LOCK_BASE) \
+		$(UV_LOCK_EXCLUDE)
+
+# --- running -------------------------------------------------------------
+run: download-model
+	$(DOCKER) run -d --name $(IMAGE) \
+		$(DOCKER_RUN_FLAGS) \
+		-p $(PORT):8188 \
+		$(LOCAL_IMAGE)
+	@echo "ComfyUI: http://127.0.0.1:$(PORT)  (logs: make logs)"
+
+logs:
+	$(DOCKER) logs -f $(IMAGE)
+
+stop:
+	-$(DOCKER) stop $(IMAGE)
+
+# Throw away everything ComfyUI Manager installed, back to the image's state.
+# Models, outputs and custom-node checkouts are untouched: only the overlay
+# virtualenv is removed, and the entrypoint rebuilds it on the next start.
+reset-overlay:
+	$(DOCKER) run --rm -v $(DATA):/data --entrypoint bash $(LOCAL_IMAGE) -c \
+		'rm -rf /data/.venv && echo "overlay removed; it will be recreated on next start"'
+
+# Run curl in the image so a Docker-owned data directory also works, and verify
+# the download against a pinned hash before it becomes visible to ComfyUI.
+download-model:
+	$(DOCKER) run --rm \
+		-v $(DATA):/data \
+		--entrypoint bash $(LOCAL_IMAGE) -c '\
+		set -e; \
+		dest=/data/models/checkpoints/$(MODEL_FILE); \
+		if [ ! -f "$$dest" ]; then \
+			mkdir -p /data/models/checkpoints; \
+			curl -fL --retry 5 --retry-delay 2 -C - \
+				-o "$$dest.part" "$(MODEL_URL)"; \
+			echo "$(MODEL_SHA256)  $$dest.part" | sha256sum -c -; \
+			mv "$$dest.part" "$$dest"; \
+		else \
+			echo "Model already downloaded: $$dest"; \
+		fi'
+
+# Checks the image itself: imports, the pinned stack, the Manager, and that the
+# overlay plumbing works. Needs no GPU and no model.
+smoke-test:
+	$(DOCKER) run $(DOCKER_RUN_FLAGS) $(LOCAL_IMAGE) /app/test/smoke.py --no-gpu
+
+# End-to-end: renders an image through the pinned model and checks the output.
+# This is the test that catches a broken ROCm stack or a broken overlay.
+test: download-model
+	$(DOCKER) run $(DOCKER_RUN_FLAGS) -v $(CURDIR):/app $(LOCAL_IMAGE) \
+		python /app/test/generate.py
 
 publish:
-	docker image tag comfyui-rocm:$(tag) hardandheavy/comfyui-rocm:$(tag)
-	docker push hardandheavy/comfyui-rocm:$(tag)
-	docker image tag comfyui-rocm:$(tag) hardandheavy/comfyui-rocm:latest
-	docker push hardandheavy/comfyui-rocm:latest
+	@if [ "$(tag)" = "latest" ]; then \
+		echo "Refusing to publish without an explicit release tag (for example, tag=3.0.0)."; \
+		exit 1; \
+	fi
+	$(DOCKER) image tag $(LOCAL_IMAGE) $(PUBLISH_IMAGE):$(tag)
+	$(call push_with_retries,$(PUBLISH_IMAGE):$(tag))
+	$(DOCKER) image tag $(LOCAL_IMAGE) $(PUBLISH_IMAGE):latest
+	$(call push_with_retries,$(PUBLISH_IMAGE):latest)
 
-seed:
-	if [ ! -f "$(CONDA_DIR)/conda-check-seed-file" ]; then \
-		docker run -it --rm \
-			-v $(CONDA_DIR):/opt/miniconda_seed \
-			hardandheavy/comfyui-rocm:$(CUR_VERSION) sh -c \
-				"cp -r /opt/miniconda/* /opt/miniconda_seed && \
-				touch /opt/miniconda_seed/conda-check-seed-file"; fi
-
-run: seed
-	docker run -it --rm \
-		-p 80:80 \
-		--device=/dev/kfd \
-		--device=/dev/dri \
-		-e HSA_OVERRIDE_GFX_VERSION=$(HSA_OVERRIDE_GFX_VERSION) \
-		-e HSA_ENABLE_SDMA=0 \
-		-e COMFYUI_LAUNCH_ARGS="--listen 0.0.0.0 --port 80" \
-		-v ./data/check:/check \
-		-v ./data/home:/root \
-		-v $(CONDA_DIR):/opt/miniconda \
-		-v ./data/comfyui:/comfyui \
-		hardandheavy/comfyui-rocm:$(CUR_VERSION)
+.PHONY: build check versions base-constraints pin-base pin-base-check lock \
+	run logs stop reset-overlay download-model smoke-test test publish
