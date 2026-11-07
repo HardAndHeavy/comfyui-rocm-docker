@@ -195,6 +195,36 @@ def overlay_wiring() -> str:
     return f"{OVERLAY} -> {expected}"
 
 
+def manager_uses_pip() -> str:
+    """The Manager must not use uv as its pip backend.
+
+    uv does not read .pth files, so inside the overlay `uv pip list` sees only
+    the overlay's own packages and reports the base image's torch, transformers
+    and frontend as missing. The Manager then "fixes" the frontend by
+    reinstalling it into the overlay on every start, shadowing the pinned copy.
+    """
+    conf = Path(os.environ.get("COMFYUI_BASE_DIRECTORY", "/data")) / "user" / "__manager" / "config.ini"
+    if not conf.is_file():
+        raise AssertionError(f"{conf} is missing; the entrypoint should create it")
+    values = {}
+    for line in conf.read_text().splitlines():
+        if "=" in line and not line.startswith("["):
+            key, _, value = line.partition("=")
+            values[key.strip()] = value.strip()
+    if values.get("use_uv", "").lower() not in ("false", "0", "no"):
+        raise AssertionError(f"use_uv is {values.get('use_uv')!r}; the Manager would use uv")
+    # Any base package the Manager reinstalled into the overlay is a symptom.
+    version = f"{sys.version_info.major}.{sys.version_info.minor}"
+    leaked = sorted(
+        p.name for p in (OVERLAY / "lib" / f"python{version}" / "site-packages").glob("comfyui_frontend_package*")
+    )
+    if leaked:
+        raise AssertionError(
+            "the Manager reinstalled a base package into the overlay: " + ", ".join(leaked)
+        )
+    return "pip backend, no shadowed base packages"
+
+
 def no_seed_files() -> str:
     """The failure in issue #7: a missing /check directory, and a clone loop.
 
@@ -291,6 +321,7 @@ def main() -> int:
     check("ComfyUI imports", comfyui_imports)
     check("ComfyUI Manager", manager_version)
     check("Manager requirements", manager_requirements)
+    check("Manager uses pip, not uv", manager_uses_pip)
     check("constraint pins", constraints_match)
     check("GPU stack is protected", constraint_blocks_torch)
     check("overlay environment", overlay_wiring)

@@ -121,6 +121,31 @@ if [ "$(id -u)" = "0" ]; then
     chown -R "${PUID}:${PGID}" "${OVERLAY}" 2>/dev/null || true
 fi
 
+# --- ComfyUI Manager: force pip, never uv ---------------------------------
+# The Manager picks uv as its pip backend whenever the uv module is importable,
+# and uv is a dependency of the Manager package, so it always is. uv does not
+# read .pth files, so `uv pip list` inside the overlay reports only the overlay's
+# own packages — torch, transformers and the frontend from the base image are
+# invisible. The Manager trusts that listing: it logs "PyTorch is not installed"
+# and "fixes" the missing frontend by reinstalling it into the overlay on every
+# start, which then shadows the pinned copy. config.ini is the only switch it
+# exposes (`use_uv`), and with it off the Manager shells out to
+# `sys.executable -m pip`, whose list is correct.
+manager_conf_dir="${BASE_DIR}/user/__manager"
+manager_conf="${manager_conf_dir}/config.ini"
+mkdir -p "${manager_conf_dir}"
+if [ ! -f "${manager_conf}" ]; then
+    printf '%s\n' '[default]' 'use_uv = False' > "${manager_conf}"
+elif grep -q '^use_uv' "${manager_conf}"; then
+    sed -i 's/^use_uv *=.*/use_uv = False/' "${manager_conf}"
+else
+    printf '%s\n' 'use_uv = False' >> "${manager_conf}"
+fi
+
+if [ "$(id -u)" = "0" ]; then
+    chown -R "${PUID}:${PGID}" "${BASE_DIR}/user" 2>/dev/null || true
+fi
+
 # ---------------------------------------------------------------------------
 # 4. Run ComfyUI
 # ---------------------------------------------------------------------------

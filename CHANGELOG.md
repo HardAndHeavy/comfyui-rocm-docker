@@ -53,6 +53,12 @@ ComfyUI and its LLM nodes run in.
 - ComfyUI Manager is installed as a package from a pinned version rather than
   cloned into `custom_nodes`, so its version is reviewable and its files live
   in an immutable layer.
+- Force the Manager to use pip rather than uv (`use_uv = False` in its
+  `config.ini`, set by the entrypoint on every start). The Manager picks uv
+  whenever it is importable, and uv does not read `.pth` files, so inside the
+  overlay it saw none of the base image's packages: the Manager logged
+  "PyTorch is not installed" and reinstalled the frontend into the overlay on
+  every restart, shadowing the pinned copy.
 
 ### Changed
 
@@ -79,9 +85,10 @@ ComfyUI and its LLM nodes run in.
 
 ### Added
 
-- `test/smoke.py` (`make smoke-test`): fourteen checks covering the pinned
+- `test/smoke.py` (`make smoke-test`): fifteen checks covering the pinned
   stack, the Manager, the overlay wiring, the constraint file, the directory
-  layout, the unprivileged user, and the absence of `/check`. Needs no GPU
+  layout, the unprivileged user, the Manager's pip backend, and the absence of
+  `/check`. Needs no GPU
   model; the GPU checks are skipped with `--no-gpu`.
 - `test/generate.py` (`make test`): renders a 512×512 image with `sd-turbo` in
   four steps and fails if the result is uniform, which is what a broken ROCm
