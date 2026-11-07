@@ -1,4 +1,13 @@
 DOCKER ?= docker
+
+# Optional HSA override for GPUs whose arch is not built into the image. The
+# detection is by PCI name and is off unless HSA_OVERRIDE=1, because the
+# fallback in that file claims gfx900/9.0.0, which is wrong for any card newer
+# than a Vega and would make a working GPU report the wrong architecture.
+ifeq ($(HSA_OVERRIDE),1)
+include hsa_override.mk
+GPU_ENV = -e HSA_OVERRIDE_GFX_VERSION=$(HSA_OVERRIDE_GFX_VERSION)
+endif
 # Comma-separated tags to apply to the locally built image. `make build tags=a,b`
 # publishes several aliases without rebuilding.
 tags ?= 3.0.0
@@ -72,6 +81,7 @@ MODEL_SHA256 ?= 3f067a1b943cf162f2b8f8588f6cf5824bd5b4c7d1d88d87164b9ca123616549
 MODEL_URL = https://huggingface.co/$(MODEL_REPOSITORY)/resolve/$(MODEL_REVISION)/$(MODEL_FILE)
 
 DATA ?= $(CURDIR)/data
+CONTAINER ?= comfyui
 
 # --group-add is not needed: the entrypoint reads the gid of /dev/kfd and
 # /dev/dri itself and hands it to setpriv. --ipc=host avoids the small /dev/shm
@@ -80,6 +90,7 @@ DOCKER_RUN_FLAGS = --rm \
 	--ipc=host \
 	--device=/dev/kfd \
 	--device=/dev/dri \
+	$(GPU_ENV) \
 	-v $(DATA):/data
 
 build:
@@ -133,18 +144,21 @@ lock:
 		$(UV_LOCK_EXCLUDE)
 
 # --- running -------------------------------------------------------------
-run: download-model
-	$(DOCKER) run -d --name $(IMAGE) \
+# No model download here: `make run` must start ComfyUI immediately on a fresh
+# checkout, and a 5 GB download would look like a hang. `make test` fetches it.
+run:
+	$(DOCKER) run -d --name $(CONTAINER) \
 		$(DOCKER_RUN_FLAGS) \
 		-p $(PORT):8188 \
 		$(LOCAL_IMAGE)
 	@echo "ComfyUI: http://127.0.0.1:$(PORT)  (logs: make logs)"
 
 logs:
-	$(DOCKER) logs -f $(IMAGE)
+	$(DOCKER) logs -f $(CONTAINER)
 
+# `run` uses --rm, so stopping is enough to remove the container too.
 stop:
-	-$(DOCKER) stop $(IMAGE)
+	-$(DOCKER) stop $(CONTAINER)
 
 # Throw away everything ComfyUI Manager installed, back to the image's state.
 # Models, outputs and custom-node checkouts are untouched: only the overlay
