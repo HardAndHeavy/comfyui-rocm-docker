@@ -111,6 +111,7 @@ All settings are environment variables; pass them with `-e` or through compose.
 | `COMFYUI_LISTEN` | `0.0.0.0` | listen address |
 | `COMFYUI_PORT` | `8188` | listen port, inside the container |
 | `COMFYUI_MANAGER` | `1` | set to `0` to start without ComfyUI Manager |
+| `COMFYUI_NETWORK_MODE` | `personal_cloud` | Manager `network_mode`: `public`, `private`, `offline`, `personal_cloud` |
 | `PUID` / `PGID` | `10001` / `10001` | run as these ids instead |
 | `COMFYUI_ALLOW_ROOT` | `0` | set to `1` to keep running as root |
 | `HF_HOME` | `/data/huggingface` | Hugging Face cache location |
@@ -119,17 +120,43 @@ Do not pass `--base-directory`, `--listen` or `--port` through
 `COMFYUI_LAUNCH_ARGS`: the entrypoint sets them, and a duplicate flag makes
 ComfyUI use the last value.
 
-The `--listen` default is `0.0.0.0` because the container is expected to be
-reached from the host over a published port. ComfyUI and ComfyUI Manager both
-treat a non-loopback address as more exposed: the Manager drops to a stricter
-security level, which disables its remote install buttons. If you only need it
-on the local machine, mount on loopback instead and keep it simple:
+The `--listen` default is `0.0.0.0` because `-p` forwards to the container's
+eth0, not to its loopback: binding `127.0.0.1` inside the container makes the
+published port dead. `make run` therefore publishes on `127.0.0.1` of the host,
+so the server is reachable only from this machine — see `BIND` in the
+`Makefile`.
+
+That publish side is what makes ComfyUI Manager's network mode meaningful. The
+Manager decides what it may do from two inputs, the listen address and
+`network_mode`, and on a non-loopback address with the default `public` it
+denies the install actions regardless of `security_level`; only
+`personal_cloud` opens them. So the entrypoint writes
+`network_mode = personal_cloud` into `data/user/__manager/config.ini` on every
+start (`COMFYUI_NETWORK_MODE` overrides it), and leaves the Manager's own
+`security_level = normal` alone. Together with the loopback publish this
+describes an ordinary single-user ComfyUI install, and nothing is weakened
+beyond the Manager's own defaults.
+
+It is rewritten on every start rather than seeded once because the Manager
+writes `network_mode = public` into that file itself: a seed-if-absent rule
+would never fire on a volume that already has the key, so an upgrade would keep
+the old behaviour.
+
+Two consequences worth knowing:
+
+- **Exposing it beyond this machine.** `make run BIND=0.0.0.0`, or publishing
+  the port yourself on all interfaces, makes the `personal_cloud` claim false.
+  Run with `COMFYUI_NETWORK_MODE=public` when you do that; the Manager then
+  hides the install buttons again, which is the point. Keeping the two in sync
+  is your call, because the container cannot see how the port was published.
+- **If you really want a loopback listener**, run with `--network host` and
+  `COMFYUI_LISTEN=127.0.0.1`: the container's loopback is then the host's, and
+  the Manager sees a genuinely local listener.
 
 ```bash
-docker run -d --name comfyui --ipc=host \
+docker run -d --name comfyui --ipc=host --network host \
   --device=/dev/kfd --device=/dev/dri \
-  -v "$PWD/data:/data" -p 127.0.0.1:8188:8188 \
-  -e COMFYUI_LISTEN=127.0.0.1 \
+  -v "$PWD/data:/data" -e COMFYUI_LISTEN=127.0.0.1 \
   hardandheavy/comfyui-rocm:latest
 ```
 
@@ -246,12 +273,16 @@ the host driver is missing. Check with `ls -l /dev/kfd /dev/dri` and
 default. Either let the entrypoint own the directory (`sudo chown -R 10001:10001
 ./data`) or run with your own ids: `make run PUID=$(id -u) PGID=$(id -g)`.
 
-**ComfyUI starts but the Manager refuses to install anything** — it enforces a
-security level that depends on `--listen`. On a non-loopback address it requires
-`security_level` to be `normal` or lower in its configuration under `/data/user`,
-and it reports the setting and a link to its documentation in the message. This
-is a deliberate restriction of the Manager, not a problem with the image; the
-entrypoint does not weaken it for you.
+**ComfyUI starts but the Manager refuses to install anything** — check
+`COMFYUI_NETWORK_MODE` (and `network_mode` in `data/user/__manager/config.ini`,
+which the entrypoint keeps in sync with it). On a non-loopback listener the
+Manager denies installs while the mode is `public`, whatever `security_level`
+says; the image defaults to `personal_cloud` because `make run` publishes on
+loopback. If you exposed the port further, the setting and the exposure now
+disagree: either publish on `127.0.0.1` again, or pass
+`COMFYUI_NETWORK_MODE=public` and accept that installs are remote-disabled.
+Raising `security_level` to `weak` is not a fix — it leaves installs denied and
+opens the git-URL and fix-pack actions instead.
 
 **A custom node broke ComfyUI** — `make reset-overlay` removes every package the
 Manager installed and returns to the image's state. Models, outputs and the

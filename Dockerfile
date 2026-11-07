@@ -226,7 +226,10 @@ RUN set -eux; \
 # The self-test ships in the image: `make smoke-test` and `make test` run it from
 # /app, and an operator with the published image can run the same checks without
 # the repository (`docker run --rm IMAGE python /app/test/smoke.py --no-gpu`).
+# It is executed directly by the entrypoint, so it needs the exec bit: a git
+# checkout does not preserve it for a 100644 file.
 COPY test /app/test
+RUN chmod 0755 /app/test/smoke.py /app/test/generate.py
 
 COPY docker/pip /usr/local/bin/pip
 COPY docker/entrypoint.sh /usr/local/bin/comfyui-entrypoint

@@ -225,6 +225,40 @@ def manager_uses_pip() -> str:
     return "pip backend, no shadowed base packages"
 
 
+def manager_network_mode() -> str:
+    """The entrypoint must put the requested Manager network mode in config.ini.
+
+    With the default `public` network mode and a non-loopback listener (which a
+    published port always is, because `-p` forwards to the container's eth0),
+    the Manager denies the install actions regardless of `security_level`: the
+    `middle+` branch returns False without consulting it. Only `personal_cloud`
+    opens them, so that is the image default.
+
+    This asserts the invariant the image owns — config.ini agrees with
+    `COMFYUI_NETWORK_MODE` — rather than the default value, so a deliberate
+    `COMFYUI_NETWORK_MODE=public` (an exposed deployment) passes while a broken
+    entrypoint does not. `security_level` is reported but not asserted: the
+    image never writes it, so its value describes the volume, not the build.
+    """
+    conf = Path(os.environ.get("COMFYUI_BASE_DIRECTORY", "/data")) / "user" / "__manager" / "config.ini"
+    if not conf.is_file():
+        raise AssertionError(f"{conf} is missing; the entrypoint should create it")
+    values = {}
+    for line in conf.read_text().splitlines():
+        if "=" in line and not line.startswith("["):
+            key, _, value = line.partition("=")
+            values[key.strip()] = value.strip()
+    expected = os.environ.get("COMFYUI_NETWORK_MODE", "personal_cloud").lower()
+    mode = values.get("network_mode", "").lower()
+    if mode != expected:
+        raise AssertionError(
+            f"network_mode is {mode or 'unset'!r} but COMFYUI_NETWORK_MODE is "
+            f"{expected!r}; the entrypoint must write the requested mode"
+        )
+    level = values.get("security_level", "normal").lower()
+    return f"network_mode={mode}, security_level={level}"
+
+
 def no_seed_files() -> str:
     """The failure in issue #7: a missing /check directory, and a clone loop.
 
@@ -322,6 +356,7 @@ def main() -> int:
     check("ComfyUI Manager", manager_version)
     check("Manager requirements", manager_requirements)
     check("Manager uses pip, not uv", manager_uses_pip)
+    check("Manager network mode", manager_network_mode)
     check("constraint pins", constraints_match)
     check("GPU stack is protected", constraint_blocks_torch)
     check("overlay environment", overlay_wiring)

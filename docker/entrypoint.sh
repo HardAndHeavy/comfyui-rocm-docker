@@ -142,6 +142,39 @@ else
     printf '%s\n' 'use_uv = False' >> "${manager_conf}"
 fi
 
+# --- ComfyUI Manager: the listener is a personal cloud, not a public host ---
+# The Manager decides what it may do from two inputs: the listen address and
+# `network_mode`. On a non-loopback address with the default `public`, the
+# install actions (`middle+`) are denied *regardless* of `security_level` — only
+# `personal_cloud` opens them, and `security_level = weak` does not (it widens
+# `high` instead, which is git-URL and fix-pack, i.e. more than we want).
+#
+# The image cannot listen on loopback: `-p` forwards to the container's eth0,
+# so binding 127.0.0.1 inside makes the published port dead. What makes the
+# `personal_cloud` claim true is therefore the publish side: `make run` binds
+# the port to 127.0.0.1, so the only reachable client is the owner on this
+# machine.
+#
+# This is an environment variable rather than a one-time seed because the
+# Manager writes `network_mode = public` into config.ini itself on its first
+# start: a seed-if-absent rule would never fire on an existing volume, so
+# upgrades would keep the broken behaviour. It is also consistent with the rest
+# of the image, where COMFYUI_LISTEN and COMFYUI_PORT are the configuration
+# surface and config.ini is derived. Exposing the port further means the claim
+# is false: pass COMFYUI_NETWORK_MODE=public.
+manager_network_mode="${COMFYUI_NETWORK_MODE:-personal_cloud}"
+case "${manager_network_mode}" in
+    public|private|offline|personal_cloud) ;;
+    *) die "COMFYUI_NETWORK_MODE must be public, private, offline or personal_cloud, got '${manager_network_mode}'" ;;
+esac
+# `sed` replaces in place and appends when the key is absent, so one pass covers
+# both a fresh file and one the Manager has already written.
+if grep -q '^network_mode' "${manager_conf}"; then
+    sed -i "s|^network_mode *=.*|network_mode = ${manager_network_mode}|" "${manager_conf}"
+else
+    printf '%s\n' "network_mode = ${manager_network_mode}" >> "${manager_conf}"
+fi
+
 if [ "$(id -u)" = "0" ]; then
     chown -R "${PUID}:${PGID}" "${BASE_DIR}/user" 2>/dev/null || true
 fi
@@ -221,11 +254,19 @@ if [ "$(id -u)" = "0" ]; then
         log "COMFYUI_ALLOW_ROOT=1: running as root"
         exec "${run[@]}" "${launch_args[@]}"
     fi
-    # --groups replaces the supplementary set, so --clear-groups is not passed:
-    # setpriv rejects the combination. An empty value empties the set.
+    # --groups replaces the supplementary set, so --clear-groups is the other
+    # way to say "no supplementary groups". `--groups ""` is not equivalent:
+    # util-linux 2.41.3 parses the empty value as an invalid group id and
+    # refuses to start, which is what happened whenever no GPU device was
+    # passed through (`docker run IMAGE /app/test/smoke.py --no-gpu`).
+    if [ -n "${extra_groups}" ]; then
+        groups_arg=( --groups "${extra_groups}" )
+    else
+        groups_arg=( --clear-groups )
+    fi
     exec setpriv \
         --reuid "${PUID}" --regid "${PGID}" \
-        --groups "${extra_groups:-}" \
+        "${groups_arg[@]}" \
         -- "${run[@]}" "${launch_args[@]}"
 fi
 

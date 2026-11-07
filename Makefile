@@ -82,6 +82,12 @@ MODEL_URL = https://huggingface.co/$(MODEL_REPOSITORY)/resolve/$(MODEL_REVISION)
 
 DATA ?= $(CURDIR)/data
 CONTAINER ?= comfyui
+# ComfyUI has no authentication. Publishing on 127.0.0.1 keeps it reachable only
+# from this machine, which is also what makes the Manager's `personal_cloud`
+# network mode (seeded by the entrypoint) an accurate statement rather than a
+# claim. Override with BIND=0.0.0.0 to expose it to the network — and then set
+# `network_mode = public` in data/user/__manager/config.ini.
+BIND ?= 127.0.0.1
 
 # --group-add is not needed: the entrypoint reads the gid of /dev/kfd and
 # /dev/dri itself and hands it to setpriv. --ipc=host avoids the small /dev/shm
@@ -149,7 +155,7 @@ lock:
 run:
 	$(DOCKER) run -d --name $(CONTAINER) \
 		$(DOCKER_RUN_FLAGS) \
-		-p $(PORT):8188 \
+		-p $(BIND):$(PORT):8188 \
 		$(LOCAL_IMAGE)
 	@echo "ComfyUI: http://127.0.0.1:$(PORT)  (logs: make logs)"
 
