@@ -180,7 +180,7 @@ docker run -d --name comfyui --ipc=host --network host \
 Модели есть на [civitai.com](https://civitai.com/) и
 [huggingface.co](https://huggingface.co/).
 
-## Состав версии 3.0.0
+## Состав версии 3.0.1
 
 Изменения по релизам — в [CHANGELOG](../CHANGELOG.md). Версия образа не связана
 с версиями ROCm, ComfyUI и Manager.

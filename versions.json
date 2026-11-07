@@ -1,6 +1,6 @@
 {
   "image": {
-    "version": "3.0.0",
+    "version": "3.0.1",
     "base_image": "hardandheavy/llama-rocm",
     "base_version": "3.0.1",
     "base_digest": "sha256:c1936e82e527b7f9b82d469f42b66806df49fd45e00d09384dac9e8deb590053",

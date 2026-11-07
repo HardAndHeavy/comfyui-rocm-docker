@@ -52,7 +52,7 @@ ARG BASE_IMAGE=hardandheavy/llama-rocm:3.0.1@sha256:c1936e82e527b7f9b82d469f42b6
 FROM ${BASE_IMAGE}
 
 # Re-declared inside the stage: an ARG before FROM is not visible after it.
-ARG IMAGE_VERSION=3.0.0
+ARG IMAGE_VERSION=3.0.1
 ARG IMAGE_REVISION=unknown
 ARG IMAGE_CREATED=1970-01-01T00:00:00Z
 ARG COMFYUI_VERSION=0.44.2

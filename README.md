@@ -180,7 +180,7 @@ runs; ComfyUI's file list is refreshed by the reload button in the UI.
 Models are found on [civitai.com](https://civitai.com/) or
 [huggingface.co](https://huggingface.co/).
 
-## Version 3.0.0 software stack
+## Version 3.0.1 software stack
 
 See the [changelog](CHANGELOG.md) for release highlights. The image version is
 independent of the ROCm, ComfyUI and Manager versions.

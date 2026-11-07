@@ -4,6 +4,46 @@ Image versions are independent of the ROCm, ComfyUI and ComfyUI Manager
 versions. Only changes that affect the published image or the repository
 commands are listed.
 
+## 3.0.1
+
+Fix-up release for 3.0.0. No change to the pinned stack: same base image, same
+ComfyUI, same Manager. Two of these are outright bugs in the published 3.0.0
+image.
+
+### Fixed: the container did not start without a GPU device
+
+- `setpriv --groups ""` is rejected by util-linux 2.41.3 ("Invalid
+  supplementary group id"), so any container started without `/dev/kfd` and
+  `/dev/dri` exited before running anything. That includes the documented
+  `docker run --rm IMAGE /app/test/smoke.py --no-gpu`, which is the whole point
+  of `--no-gpu`. An empty group set now uses `--clear-groups`.
+- `test/smoke.py` had no exec bit, so `make smoke-test` failed with
+  `Permission denied`. The Dockerfile now sets it.
+
+### Changed: published on loopback, Manager sees a personal cloud
+
+- `make run` publishes the port on `127.0.0.1` (`BIND`, override with
+  `BIND=0.0.0.0`) instead of every host interface. ComfyUI has no
+  authentication, and the Makefile already printed a `127.0.0.1` URL.
+- The entrypoint writes `network_mode` into
+  `data/user/__manager/config.ini` on every start, from
+  `COMFYUI_NETWORK_MODE` (default `personal_cloud`). On a non-loopback
+  listener — which a published port always is, since `-p` forwards to the
+  container's eth0 — the Manager denies its install actions while the mode is
+  `public`, regardless of `security_level`; only `personal_cloud` opens them.
+  It is rewritten rather than seeded once because the Manager writes `public`
+  into that file itself, so a seed would never fire on an existing volume and
+  an upgrade would keep the broken behaviour. Combined with the loopback
+  publish, this is an ordinary single-user install at the Manager's own default
+  `security_level = normal`. Raising it to `weak` does not enable installs and
+  does open the git-URL and fix-pack actions, so the image does not do it.
+- Fix the README's loopback recipe: `-p 127.0.0.1:8188:8188` together with
+  `COMFYUI_LISTEN=127.0.0.1` leaves the published port dead, because the
+  forward targets eth0, not the container's loopback. The recipe now uses
+  `--network host`.
+- `smoke-test` fails if `config.ini` disagrees with `COMFYUI_NETWORK_MODE`, so
+  a broken entrypoint is caught without rejecting a deliberate `public`.
+
 ## 3.0.0
 
 Rebuilt on `llama-rocm:3.0.1` (ROCm 10.1.0, Ubuntu 26.04, Python 3.14,
@@ -59,39 +99,6 @@ ComfyUI and its LLM nodes run in.
   overlay it saw none of the base image's packages: the Manager logged
   "PyTorch is not installed" and reinstalled the frontend into the overlay on
   every restart, shadowing the pinned copy.
-
-### Changed: published on loopback, Manager sees a personal cloud
-
-- `make run` publishes the port on `127.0.0.1` (`BIND`, override with
-  `BIND=0.0.0.0`) instead of every host interface. ComfyUI has no
-  authentication, and the Makefile already printed a `127.0.0.1` URL.
-- The entrypoint sets `network_mode = personal_cloud` in
-  `data/user/__manager/config.ini` on every start, overridable with
-  `COMFYUI_NETWORK_MODE`. On a non-loopback listener — which a published port
-  always is, since `-p` forwards to the container's eth0 — the Manager denies
-  its install actions while the mode is `public`, regardless of
-  `security_level`; only `personal_cloud` opens them. It is rewritten rather
-  than seeded once because the Manager writes `public` into that file itself,
-  so a seed would never fire on an existing volume. Combined with the loopback
-  publish, this is an ordinary single-user install at the Manager's own default
-  `security_level = normal`. Raising it to `weak` does not enable installs and
-  does open the git-URL and fix-pack actions, so the image does not do it.
-- Fix the README's loopback recipe: `-p 127.0.0.1:8188:8188` together with
-  `COMFYUI_LISTEN=127.0.0.1` leaves the published port dead, because the
-  forward targets eth0, not the container's loopback. The recipe now uses
-  `--network host`.
-- `smoke-test` fails if `network_mode` is no longer `personal_cloud` or if
-  `security_level` was lowered to `weak`.
-
-### Fixed: running the image without a GPU device failed
-
-- `setpriv --groups ""` is rejected by util-linux 2.41.3 ("Invalid
-  supplementary group id"), so any container started without `/dev/kfd` and
-  `/dev/dri` — including the documented
-  `docker run --rm IMAGE /app/test/smoke.py --no-gpu` — exited before running
-  anything. An empty group set now uses `--clear-groups`.
-- `test/smoke.py` had no exec bit, so `make smoke-test` failed with
-  `Permission denied`; the Dockerfile now sets it.
 
 ### Changed
 
