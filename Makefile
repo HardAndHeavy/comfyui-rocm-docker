@@ -10,10 +10,10 @@ GPU_ENV = -e HSA_OVERRIDE_GFX_VERSION=$(HSA_OVERRIDE_GFX_VERSION)
 endif
 # Comma-separated tags to apply to the locally built image. `make build tags=a,b`
 # publishes several aliases without rebuilding.
-tags ?= 3.0.1
+tags ?= 3.0.2
 IMAGE ?= comfyui-rocm
 PUBLISH_IMAGE ?= hardandheavy/comfyui-rocm
-tag ?= 3.0.1
+tag ?= 3.0.2
 
 LOCAL_IMAGE = $(IMAGE):$(tag)
 BUILD_DATE ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
@@ -204,7 +204,7 @@ test: download-model
 
 publish:
 	@if [ "$(tag)" = "latest" ]; then \
-		echo "Refusing to publish without an explicit release tag (for example, tag=3.0.0)."; \
+		echo "Refusing to publish without an explicit release tag (for example, tag=3.0.2)."; \
 		exit 1; \
 	fi
 	$(DOCKER) image tag $(LOCAL_IMAGE) $(PUBLISH_IMAGE):$(tag)

@@ -1,9 +1,9 @@
 {
   "image": {
-    "version": "3.0.1",
+    "version": "3.0.2",
     "base_image": "hardandheavy/llama-rocm",
-    "base_version": "3.0.1",
-    "base_digest": "sha256:c1936e82e527b7f9b82d469f42b66806df49fd45e00d09384dac9e8deb590053",
+    "base_version": "3.0.2",
+    "base_digest": "sha256:f5a7d22b7e360e19c7ab43cd91c7c51bc5df15ace4f4897d0d3ed5dce2c4790e",
     "python_version": "3.14",
     "ubuntu_series": "resolute",
     "ubuntu_snapshot": "20261106T000000Z"

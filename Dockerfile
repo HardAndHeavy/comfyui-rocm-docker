@@ -48,11 +48,11 @@
 # tools/base_constraints.py; the build asserts they match the installed base.
 
 # BEGIN GENERATED: tools/versions.py args
-ARG BASE_IMAGE=hardandheavy/llama-rocm:3.0.1@sha256:c1936e82e527b7f9b82d469f42b66806df49fd45e00d09384dac9e8deb590053
+ARG BASE_IMAGE=hardandheavy/llama-rocm:3.0.2@sha256:f5a7d22b7e360e19c7ab43cd91c7c51bc5df15ace4f4897d0d3ed5dce2c4790e
 FROM ${BASE_IMAGE}
 
 # Re-declared inside the stage: an ARG before FROM is not visible after it.
-ARG IMAGE_VERSION=3.0.1
+ARG IMAGE_VERSION=3.0.2
 ARG IMAGE_REVISION=unknown
 ARG IMAGE_CREATED=1970-01-01T00:00:00Z
 ARG COMFYUI_VERSION=0.44.2
@@ -69,8 +69,8 @@ LABEL org.opencontainers.image.title="comfyui-rocm" \
       org.opencontainers.image.version="${IMAGE_VERSION}" \
       org.opencontainers.image.revision="${IMAGE_REVISION}" \
       org.opencontainers.image.created="${IMAGE_CREATED}" \
-      org.opencontainers.image.base.name="hardandheavy/llama-rocm:3.0.1" \
-      org.opencontainers.image.base.digest="sha256:c1936e82e527b7f9b82d469f42b66806df49fd45e00d09384dac9e8deb590053" \
+      org.opencontainers.image.base.name="hardandheavy/llama-rocm:3.0.2" \
+      org.opencontainers.image.base.digest="sha256:f5a7d22b7e360e19c7ab43cd91c7c51bc5df15ace4f4897d0d3ed5dce2c4790e" \
       ru.hardandheavy.comfyui.version="0.44.2" \
       ru.hardandheavy.comfyui.revision="e6515b16ed360b01bd6548bffaca193f88f181fb" \
       ru.hardandheavy.comfyui-manager.version="4.2.2" \

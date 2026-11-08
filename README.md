@@ -12,10 +12,8 @@ image for AMD Radeon GPUs, published as
 [`hardandheavy/comfyui-rocm`](https://hub.docker.com/r/hardandheavy/comfyui-rocm).
 
 Custom nodes and their Python dependencies installed from ComfyUI Manager
-survive a restart. There is no conda tree on the host, no seed file, and no
-`chmod -R` of your data directory — the failure modes of the previous versions
-of this image, including the one reported in
-[issue #7](https://github.com/HardAndHeavy/comfyui-rocm-docker/issues/7).
+survive a restart. Models, outputs, custom nodes, and the overlay Python
+environment all live together in one persistent data volume.
 
 ## Quick start
 
@@ -66,9 +64,8 @@ interpreter, which means:
 - throwing the overlay away (`make reset-overlay`) returns the container to the
   exact state of the image, keeping models and outputs.
 
-This replaces the `/opt/miniconda` mount of the previous image. That mount
-pinned an entire Python installation on the host, and the seed file used to
-remember whether it had been populated is what broke in issue #7.
+Because the overlay lives beside the nodes and models, a single `/data` volume
+preserves the complete installation when the container is replaced.
 
 ## The GPU stack is protected
 
@@ -180,7 +177,7 @@ runs; ComfyUI's file list is refreshed by the reload button in the UI.
 Models are found on [civitai.com](https://civitai.com/) or
 [huggingface.co](https://huggingface.co/).
 
-## Version 3.0.1 software stack
+## Version 3.0.2 software stack
 
 See the [changelog](CHANGELOG.md) for release highlights. The image version is
 independent of the ROCm, ComfyUI and Manager versions.
@@ -188,7 +185,7 @@ independent of the ROCm, ComfyUI and Manager versions.
 <!-- versions:begin -->
 | Component | Version |
 | --- | --- |
-| Base image | hardandheavy/llama-rocm:3.0.1@sha256:c1936e82e527b7f9b82d469f42b66806df49fd45e00d09384dac9e8deb590053 |
+| Base image | hardandheavy/llama-rocm:3.0.2@sha256:f5a7d22b7e360e19c7ab43cd91c7c51bc5df15ace4f4897d0d3ed5dce2c4790e |
 | ComfyUI | 0.44.2 (e6515b16e) |
 | ComfyUI Manager | 4.2.2 |
 | Python | 3.14 |
@@ -235,7 +232,7 @@ Inside this image:
   Python packages come from hash-pinned locks, and ComfyUI is fetched by commit
   rather than by tag, so a moved tag cannot change a build.
 - **The base is pinned by digest.** `make pin-base` asks the registry what
-  `llama-rocm:3.0.1` currently points at and records it, and refuses to write a
+  `llama-rocm:3.0.2` currently points at and records it, and refuses to write a
   pin when the versioned tag and `latest` disagree.
 - **The lock resolves against the base.** `make lock` uses
   `docker/base-constraints.txt` and excludes every package the base ships, so
@@ -249,19 +246,13 @@ Inside this image:
   and `/dev/dri`, grants them, and drops privileges; there is no `--privileged`
   and no `--group-add` to get wrong.
 
-### Why there is no `/check`
+### Idempotent startup
 
-The previous image used a marker file in `/check` to decide whether it had
-already cloned ComfyUI. When `/check` did not exist, `touch` failed, the
-`Makefile` target exited before writing the marker, and the container
-re-cloned ComfyUI on every restart while failing with
-`destination path '/comfyui' already exists` (issue #7). Mounting `/check` as
-`tmpfs` made the loop worse, because the marker then disappeared every time.
-
-This image has no marker: the layout is created and the overlay is verified on
-every start, both of which are idempotent and cheap. The ComfyUI checkout lives
-in the image at `/opt/comfyui` and is never written, so there is nothing to
-seed.
+The directory layout is created and the overlay is verified on every start;
+both operations are idempotent and cheap. The ComfyUI checkout lives in the
+image at `/opt/comfyui` and is never written. There are no host-side checkout
+or marker files to keep in sync, so fresh and existing `/data` volumes follow
+the same startup path.
 
 ## Troubleshooting
 

@@ -4,6 +4,20 @@ Image versions are independent of the ROCm, ComfyUI and ComfyUI Manager
 versions. Only changes that affect the published image or the repository
 commands are listed.
 
+## 3.0.2
+
+Rebuilt on `llama-rocm:3.0.2`. No change to the pinned ComfyUI stack: the same
+ComfyUI 0.44.2, ComfyUI Manager 4.2.2, Python dependencies, ROCm and PyTorch.
+
+### Changed: inherit the llama.cpp and ROCm coexistence fix
+
+- The base image fixes the library search path of the llama.cpp libraries, so
+  `llama_cpp` can be imported before or after `torch` without loading two
+  conflicting copies of the ROCm compiler libraries. This also covers custom
+  nodes and subprocesses that import `llama_cpp` first.
+- Refresh the digest-pinned base reference and the generated base constraints.
+  The default image build and publish tag is now `3.0.2`.
+
 ## 3.0.1
 
 Fix-up release for 3.0.0. No change to the pinned stack: same base image, same
