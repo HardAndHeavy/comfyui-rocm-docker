@@ -34,6 +34,7 @@ docker run -d --name comfyui \
   --ipc=host \
   --device=/dev/kfd --device=/dev/dri \
   -v "$PWD/data:/data" \
+  -e PUID="$(id -u)" -e PGID="$(id -g)" \
   -p 8188:8188 \
   hardandheavy/comfyui-rocm:latest
 ```
@@ -260,9 +261,13 @@ the same startup path.
 the host driver is missing. Check with `ls -l /dev/kfd /dev/dri` and
 `rocminfo` on the host.
 
-**`permission denied` writing to `./data`** — the container runs as uid 10001 by
-default. Either let the entrypoint own the directory (`sudo chown -R 10001:10001
-./data`) or run with your own ids: `make run PUID=$(id -u) PGID=$(id -g)`.
+**`permission denied` writing to `./data`** — `make run` automatically passes
+the host user's UID/GID (do not run make via sudo). For direct `docker run`,
+pass `-e PUID="$(id -u)" -e PGID="$(id -g)"`; without these the image defaults
+to `10001:10001`. On startup the entrypoint assigns ownership of writable
+directories and all directories below `models`, including on existing volumes.
+Model files are left untouched; editing old files owned by another user may
+require a one-time `sudo chown -R "$(id -u):$(id -g)" ./data/models`.
 
 **ComfyUI starts but the Manager refuses to install anything** — check
 `COMFYUI_NETWORK_MODE` (and `network_mode` in `data/user/__manager/config.ini`,

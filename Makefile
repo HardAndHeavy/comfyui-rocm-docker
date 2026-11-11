@@ -81,6 +81,9 @@ MODEL_SHA256 ?= 3f067a1b943cf162f2b8f8588f6cf5824bd5b4c7d1d88d87164b9ca123616549
 MODEL_URL = https://huggingface.co/$(MODEL_REPOSITORY)/resolve/$(MODEL_REVISION)/$(MODEL_FILE)
 
 DATA ?= $(CURDIR)/data
+# Match the host owner for bind mounts, including a not-yet-created data/.
+PUID ?= $(shell id -u)
+PGID ?= $(shell id -g)
 CONTAINER ?= comfyui
 # ComfyUI has no authentication. Publishing on 127.0.0.1 keeps it reachable only
 # from this machine, which is also what makes the Manager's `personal_cloud`
@@ -93,6 +96,7 @@ BIND ?= 127.0.0.1
 # /dev/dri itself and hands it to setpriv. --ipc=host avoids the small /dev/shm
 # of the default bridge network, which ComfyUI's dataloaders need.
 DOCKER_RUN_FLAGS = --rm \
+	-e PUID=$(PUID) -e PGID=$(PGID) \
 	--ipc=host \
 	--device=/dev/kfd \
 	--device=/dev/dri \

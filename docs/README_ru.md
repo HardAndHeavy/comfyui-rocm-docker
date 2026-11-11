@@ -34,6 +34,7 @@ docker run -d --name comfyui \
   --ipc=host \
   --device=/dev/kfd --device=/dev/dri \
   -v "$PWD/data:/data" \
+  -e PUID="$(id -u)" -e PGID="$(id -g)" \
   -p 8188:8188 \
   hardandheavy/comfyui-rocm:latest
 ```
@@ -252,9 +253,13 @@ LLM внутри ComfyUI, не требовали ничего дополнит�
 **`no ROCm GPU visible`** — не проброшены `/dev/kfd` и `/dev/dri` или на хосте
 нет драйвера. Проверьте `ls -l /dev/kfd /dev/dri` и `rocminfo` на хосте.
 
-**`permission denied` при записи в `./data`** — контейнер работает от uid 10001.
-Либо отдайте каталог ему (`sudo chown -R 10001:10001 ./data`), либо запускайте
-со своими id: `make run PUID=$(id -u) PGID=$(id -g)`.
+**`permission denied` при записи в `./data`** — `make run` автоматически передаёт
+UID/GID пользователя хоста (не запускайте `make` через `sudo`). При прямом
+`docker run` передавайте `-e PUID="$(id -u)" -e PGID="$(id -g)"`; без них образ
+использует `10001:10001`. При старте entrypoint назначает владельца рабочих
+каталогов и всех каталогов внутри `models`, в том числе на существующем томе.
+Файлы моделей не меняются: для редактирования старых файлов с чужим владельцем
+может понадобиться разовый `sudo chown -R "$(id -u):$(id -g)" ./data/models`.
 
 **ComfyUI запускается, но Manager ничего не устанавливает** — проверьте
 `COMFYUI_NETWORK_MODE` (и `network_mode` в `data/user/__manager/config.ini`,

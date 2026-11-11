@@ -46,10 +46,8 @@ done
 # ---------------------------------------------------------------------------
 # 2. Ownership
 # ---------------------------------------------------------------------------
-# Only meaningful as root, and only the directories that receive writes are
-# walked: a recursive chown over a models directory holding hundreds of
-# gigabytes is not something to repeat on every start. The runtime user creates
-# everything below the top-level directories, so chowning those is enough.
+# Match host IDs on bind mounts. Model directories (including existing nested
+# ones) must be writable too, but do not chown large model files on every start.
 device_groups() {
     local node gid
     for node in /dev/kfd /dev/dri/renderD* /dev/dri/card*; do
@@ -64,14 +62,19 @@ if [ "$(id -u)" = "0" ]; then
         current_uid="$(id -u "${RUN_USER}")"
         current_gid="$(id -g "${RUN_USER}")"
         if [ "${PGID}" != "${current_gid}" ]; then
-            groupmod --gid "${PGID}" "${RUN_USER}"
+            if ! getent group "${PGID}" >/dev/null; then
+                groupmod --gid "${PGID}" "${RUN_USER}"
+            fi
+            usermod --gid "${PGID}" "${RUN_USER}"
         fi
         if [ "${PUID}" != "${current_uid}" ]; then
-            usermod --uid "${PUID}" "${RUN_USER}"
+            # The base image already has ubuntu at uid 1000. A shared numeric
+            # uid is intentional: keep our username/HOME, use the host's owner.
+            usermod --non-unique --uid "${PUID}" "${RUN_USER}"
         fi
     else
-        groupadd --gid "${PGID}" "${RUN_USER}"
-        useradd --uid "${PUID}" --gid "${PGID}" --create-home \
+        getent group "${PGID}" >/dev/null || groupadd --gid "${PGID}" "${RUN_USER}"
+        useradd --non-unique --uid "${PUID}" --gid "${PGID}" --create-home \
             --shell /bin/bash "${RUN_USER}"
     fi
 
@@ -80,6 +83,7 @@ if [ "$(id -u)" = "0" ]; then
         "${BASE_DIR}/previews" 2>/dev/null || true
     chown "${PUID}:${PGID}" "${BASE_DIR}" "${BASE_DIR}/models" \
         "${BASE_DIR}/huggingface" 2>/dev/null || true
+    find "${BASE_DIR}/models" -type d -exec chown "${PUID}:${PGID}" {} +
 fi
 
 # ---------------------------------------------------------------------------

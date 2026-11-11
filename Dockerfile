@@ -87,7 +87,12 @@ RUN set -eux; \
         'Components: main universe restricted multiverse' \
         'Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg' \
         > /etc/apt/sources.list.d/ubuntu.sources; \
-    apt-get update; \
+    printf '%s\n' \
+        'Acquire::Retries "3";' \
+        'Acquire::http::Timeout "20";' \
+        'Acquire::https::Timeout "20";' \
+        > /etc/apt/apt.conf.d/80-network-retries; \
+    apt-get update --error-on=any; \
     apt-get install -y --no-install-recommends \
         libegl1=1.7.0-3 \
         libgl1=1.7.0-3 \
